@@ -98,8 +98,8 @@ def create_checkout_session():
                 'quantity': 1,
             }],
             mode='payment',
-            success_url="http://127.0.0.1:5000/success",
-            cancel_url="http://127.0.0.1:5000/cancel",
+            success_url="https://ai-sales-chatbot.onrender.com/success",
+            cancel_url="https://ai-sales-chatbot.onrender.com/cancel",
         )
 
         return jsonify({"checkout_url": session.url})
