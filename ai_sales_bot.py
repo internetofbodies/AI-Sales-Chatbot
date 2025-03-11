@@ -80,7 +80,7 @@ def chatbot():
     except Exception as e:
         return jsonify({"response": f"Error: {str(e)}"}), 500
 
-# Payment API for Services
+    # Payment API for Services
 @app.route("/create-checkout-session", methods=["POST"])
 def create_checkout_session():
     data = request.json
@@ -101,18 +101,20 @@ def create_checkout_session():
             success_url="https://ai-sales-chatbot.onrender.com/success",
             cancel_url="https://ai-sales-chatbot.onrender.com/cancel",
         )
-        @app.route("/success")
-def success():
-    return "Payment Successful! Thank you for your purchase."
-
-@app.route("/cancel")
-def cancel():
-    return "Payment Canceled. Please try again."
-
 
         return jsonify({"checkout_url": session.url})
     except Exception as e:
         return jsonify({"response": f"Error: {str(e)}"}), 500
+
+# Success Page Route
+@app.route("/success")
+def success():
+    return "Payment Successful! Thank you for your purchase."
+
+# Cancel Page Route
+@app.route("/cancel")
+def cancel():
+    return "Payment Canceled. Please try again."
 
 if __name__ == "__main__":
     app.run(debug=True)
