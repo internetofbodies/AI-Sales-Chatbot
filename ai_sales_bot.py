@@ -101,6 +101,14 @@ def create_checkout_session():
             success_url="https://ai-sales-chatbot.onrender.com/success",
             cancel_url="https://ai-sales-chatbot.onrender.com/cancel",
         )
+        @app.route("/success")
+def success():
+    return "Payment Successful! Thank you for your purchase."
+
+@app.route("/cancel")
+def cancel():
+    return "Payment Canceled. Please try again."
+
 
         return jsonify({"checkout_url": session.url})
     except Exception as e:
