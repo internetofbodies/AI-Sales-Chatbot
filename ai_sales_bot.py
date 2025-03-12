@@ -80,11 +80,14 @@ def chatbot():
     except Exception as e:
         return jsonify({"response": f"Error: {str(e)}"}), 500
 
-    # Payment API for Services
+    # Payment API for Admin to Customize Payment
 @app.route("/create-checkout-session", methods=["POST"])
 def create_checkout_session():
     data = request.json
-    amount = data.get("amount")
+    amount = data.get("amount")  # Amount should be provided by the admin
+
+    if not amount or amount < 100:  # Stripe requires the amount in cents (e.g., $1.00 = 100 cents)
+        return jsonify({"error": "Invalid amount. Minimum amount is $1.00"}), 400
 
     try:
         session = stripe.checkout.Session.create(
@@ -93,7 +96,7 @@ def create_checkout_session():
                 'price_data': {
                     'currency': 'usd',
                     'product_data': {'name': 'AI Service'},
-                    'unit_amount': amount
+                    'unit_amount': amount,  # Admin-defined amount
                 },
                 'quantity': 1,
             }],
@@ -104,7 +107,7 @@ def create_checkout_session():
 
         return jsonify({"checkout_url": session.url})
     except Exception as e:
-        return jsonify({"response": f"Error: {str(e)}"}), 500
+        return jsonify({"error": str(e)}), 500
 
 # Success Page Route
 @app.route("/success")
