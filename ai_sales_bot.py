@@ -1,78 +1,74 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, send_from_directory, url_for, session
 import stripe
 import openai  # OpenAI API for AI responses
 import os
+import re  # Import regex for flexible input matching
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static")
+app.secret_key = "your_secret_key"  # Required for session storage
 
 # OpenAI API Key
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # Uses environment variable
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
 
 # Stripe API Key
-STRIPE_API_KEY = os.getenv("STRIPE_API_KEY")  # Uses environment variable
+STRIPE_API_KEY = os.getenv("STRIPE_API_KEY")
 stripe.api_key = STRIPE_API_KEY
+
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('static', filename)
 
 @app.route("/")
 def home():
     return render_template("index.html")
 
+@app.route("/reframer_payment")
+def reframer_payment():
+    return render_template("reframer_payment.html")
+
 @app.route("/chatbot", methods=["POST"])
 def chatbot():
     user_input = request.json.get("message").lower()
 
-    # Predefined responses for services
-    if "logo" in user_input:
-        if "minimalist" in user_input:
-            style = "minimalist"
-        elif "modern" in user_input:
-            style = "modern"
-        elif "colorful" in user_input:
-            style = "colorful"
-        else:
-            return jsonify({"response": "Would you like a minimalist, modern, or colorful logo?"})
+    # Flight detection pattern
+    flight_pattern = r"flight from (.+?) to (.+?) on (.+)"
+    match = re.search(flight_pattern, user_input)
 
-        # Generate logo using DALL·E
-        try:
-            dalle_response = openai.images.generate(
-                model="dall-e-3",
-                prompt=f"A {style} business logo, high resolution, professional.",
-                size="1024x1024",  # ✅ Fix: Use a valid size
-                n=1
-            )
+    if match:
+        departure = match.group(1).strip()
+        destination = match.group(2).strip()
+        date = match.group(3).strip()
 
-            image_url = dalle_response.data[0].url
-            return jsonify({"response": f"Here is your {style} logo:", "image_url": image_url})
-        except Exception as e:
-            return jsonify({"response": f"Error generating logo: {str(e)}"}), 500
+        session["flight_details"] = {
+            "airline": "AI Flights",
+            "price": 250,
+            "departure": departure.title(),
+            "destination": destination.title(),
+            "date": date
+        }
 
-    if "website" in user_input:
-        if "business" in user_input:
-            website_type = "business"
-        elif "e-commerce" in user_input:
-            website_type = "e-commerce"
-        else:
-            return jsonify({"response": "Do you want a business website or an e-commerce site?"})
+        return jsonify({
+            "response": f"✅ Flight found! {session['flight_details']['airline']} from {session['flight_details']['departure']} to {session['flight_details']['destination']} on {session['flight_details']['date']} for **${session['flight_details']['price']}**. Do you want to proceed with booking?"
+        })
 
-        # Generate a simple website template
-        try:
-            response = openai.chat.completions.create(  # ✅ Fix: Use correct API call
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": f"Generate a simple HTML template for a {website_type} website."}
-                ]
-            )
-            html_code = response.choices[0].message.content
-            return jsonify({"response": f"Here is your {website_type} website:", "html_code": html_code})
-        except Exception as e:
-            return jsonify({"response": f"Error generating website: {str(e)}"}), 500
+    # Handle booking confirmation
+    if user_input in ["yes", "yes book my flight", "proceed with booking"]:
+        flight_details = session.get("flight_details")
+        if not flight_details:
+            return jsonify({"response": "⚠️ I lost the flight details. Please search for a flight again."})
 
-    # AI Response using OpenAI API
+        return jsonify({
+            "response": f"🎉 Great! Click **'Pay Now'** to complete your payment for {flight_details['airline']} from {flight_details['departure']} to {flight_details['destination']} on {flight_details['date']} for **${flight_details['price']}**.",
+            "redirect_payment": True
+        })
+
+    # AI Assistant Response
     try:
-        response = openai.chat.completions.create(  # ✅ Fix: Use correct API call
+        response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are a sales assistant for AI-generated services."},
+                {"role": "system", "content": "You are a flight booking assistant."},
                 {"role": "user", "content": user_input}
             ]
         )
@@ -80,44 +76,68 @@ def chatbot():
     except Exception as e:
         return jsonify({"response": f"Error: {str(e)}"}), 500
 
-    # Payment API for Admin to Customize Payment
 @app.route("/create-checkout-session", methods=["POST"])
 def create_checkout_session():
-    data = request.json
-    amount = data.get("amount")  # Amount should be provided by the admin
-
-    if not amount or amount < 100:  # Stripe requires the amount in cents (e.g., $1.00 = 100 cents)
-        return jsonify({"error": "Invalid amount. Minimum amount is $1.00"}), 400
-
     try:
-        session = stripe.checkout.Session.create(
+        # Retrieve flight details from session
+        flight_details = session.get("flight_details")
+
+        if not flight_details:
+            return jsonify({"error": "Flight details missing. Please try booking again."}), 400
+
+        print("Flight details:", flight_details)  # Debugging print
+
+        # Ensure price is valid
+        amount = flight_details.get("price", 250) * 100  # Convert to cents
+        if amount < 100:  # Minimum $1.00
+            return jsonify({"error": "Invalid amount. Minimum amount is $1.00"}), 400
+
+        # Create Stripe session
+        stripe_session = stripe.checkout.Session.create(
             payment_method_types=['card'],
             line_items=[{
                 'price_data': {
                     'currency': 'usd',
-                    'product_data': {'name': 'AI Service'},
-                    'unit_amount': amount,  # Admin-defined amount
+                    'product_data': {
+                        'name': f"Flight from {flight_details['departure']} to {flight_details['destination']}",
+                        'description': f"Airline: {flight_details['airline']}, Date: {flight_details['date']}"
+                    },
+                    'unit_amount': amount,
                 },
                 'quantity': 1,
             }],
             mode='payment',
-            success_url="https://ai-sales-chatbot.onrender.com/success",
-            cancel_url="https://ai-sales-chatbot.onrender.com/cancel",
+            success_url="http://127.0.0.1:5000/success",
+            cancel_url="http://127.0.0.1:5000/cancel",
         )
 
-        return jsonify({"checkout_url": session.url})
+        return jsonify({"checkout_url": stripe_session.url})
+
+    except stripe.error.StripeError as e:
+        print("Stripe API Error:", e)  # Debugging print
+        return jsonify({"error": "Stripe payment processing failed."}), 500
     except Exception as e:
+        print("General Error:", e)  # Debugging print
         return jsonify({"error": str(e)}), 500
 
-# Success Page Route
+
 @app.route("/success")
 def success():
-    return "Payment Successful! Thank you for your purchase."
+    return "Flight booking successful! Your ticket details will be emailed to you shortly."
 
-# Cancel Page Route
 @app.route("/cancel")
 def cancel():
-    return "Payment Canceled. Please try again."
+    return "Flight booking was canceled. You can try again."
+
+@app.route("/confirmation")
+def confirmation():
+    return render_template("confirmation.html")
+
+@app.route("/pay-now")
+def pay_now():
+    return render_template("reframer_payment.html")  # Redirects to payment page
+
+
 
 if __name__ == "__main__":
     app.run(debug=True)
