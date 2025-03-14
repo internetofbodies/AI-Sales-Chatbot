@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Booking Confirmation</title>
+    <style>
+      /* General Styling */
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        background: linear-gradient(135deg, #eef2f3, #dfe9f3);
+        color: #333;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+
+      /* Container Box */
+      .container {
+        width: 90%;
+        max-width: 450px;
+        background: #ffffff;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+        text-align: left;
+      }
+
+      /* Heading */
+      h2 {
+        text-align: center;
+        font-size: 22px;
+        font-weight: 600;
+        margin-bottom: 20px;
+      }
+
+      /* Label Styling */
+      label {
+        font-size: 14px;
+        font-weight: 500;
+        color: #444;
+        display: block;
+        margin-bottom: 5px;
+        margin-left: 10px; /* Creates left spacing */
+      }
+
+      /* Input Fields */
+      input {
+        width: calc(
+          100% - 20px
+        ); /* Creates left spacing inside the container */
+        padding: 12px;
+        margin-bottom: 15px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: 0.3s ease;
+        display: block;
+      }
+
+      input:focus {
+        border-color: #007bff;
+        outline: none;
+      }
+
+      /* Button */
+      button {
+        width: calc(100% - 20px); /* Ensures button aligns with input fields */
+        padding: 12px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.3s ease;
+        margin-left: 10px; /* Ensures left spacing is consistent */
+      }
+
+      button:hover {
+        background: #0056b3;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Confirm Your Booking</h2>
+      <form id="confirmationForm">
+        <label>Full Name:</label>
+        <input type="text" id="fullName" required />
+
+        <label>Surname:</label>
+        <input type="text" id="surname" required />
+
+        <label>From:</label>
+        <input type="text" id="from" required readonly />
+
+        <label>To:</label>
+        <input type="text" id="to" required readonly />
+
+        <label>Departure Time:</label>
+        <input type="datetime-local" id="departureTime" required />
+
+        <label>Return Time:</label>
+        <input type="datetime-local" id="returnTime" />
+
+        <label>Passengers:</label>
+        <input type="number" id="passengers" min="1" required />
+
+        <label>Email:</label>
+        <input type="email" id="email" required />
+
+        <button id="proceedToPayment">Proceed to Payment</button>
+      </form>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        let flightDetails =
+          JSON.parse(sessionStorage.getItem("flightDetails")) || {};
+
+        document.getElementById("from").value =
+          flightDetails.departure || "N/A";
+        document.getElementById("to").value =
+          flightDetails.destination || "N/A";
+        document.getElementById("departureTime").value =
+          flightDetails.date || "";
+        document.getElementById("returnTime").value =
+          flightDetails.returnTime || "";
+        document.getElementById("passengers").value =
+          flightDetails.passengers || "1";
+        document.getElementById("email").value = flightDetails.email || "";
+
+        function confirmBooking(event) {
+          event.preventDefault();
+
+          fetch("/create-checkout-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              if (data.checkout_url) {
+                window.location.href = data.checkout_url;
+              } else {
+                alert("Payment failed. Try again.");
+              }
+            })
+            .catch((error) => {
+              console.error("Error:", error);
+              alert("Payment could not be processed.");
+            });
+        }
+
+        document
+          .getElementById("proceedToPayment")
+          .addEventListener("click", confirmBooking);
+      });
+    </script>
+  </body>
+</html>
