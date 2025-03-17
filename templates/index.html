@@ -160,6 +160,114 @@
         overflow: auto; /* Ensure text scrolls inside */
       }
 
+      /* Hero Section */
+      .hero {
+        display: flex;
+        position: relative;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background: none;
+        text-align: center;
+        overflow: hidden;
+      }
+
+      /* Video Background */
+      .hero video {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: translate(-50%, -50%);
+        z-index: -1; /* Send video behind text */
+      }
+
+      .hero h1 {
+        font-size: 36px;
+        font-weight: bold;
+        color: #fff;
+        text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.2);
+      }
+
+      .hero p {
+        font-size: 16px;
+        color: #fff;
+      }
+
+      .hero video {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: translate(-50%, -50%);
+        z-index: -1;
+      }
+
+      .hero::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5); /* Dark overlay for readability */
+        z-index: -1;
+      }
+
+      .schedule-trip {
+        background: #007bff;
+        color: #fff;
+        padding: 15px 25px;
+        font-size: 18px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.3s;
+        margin-top: 20px;
+      }
+
+      .schedule-trip:hover {
+        background: #0056b3;
+      }
+
+      /* Modal Popup */
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        justify-content: center;
+        align-items: center;
+      }
+
+      .modal-content {
+        background: #fff;
+        padding: 20px;
+        border-radius: 10px;
+        width: 90%;
+        max-width: 600px;
+        text-align: left;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        position: relative;
+      }
+
+      .close-btn {
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        font-size: 20px;
+        cursor: pointer;
+        color: #555;
+      }
+
       /* Mobile Responsiveness */
       @media (max-width: 600px) {
         #input-container {
@@ -173,19 +281,43 @@
     </style>
   </head>
   <body>
-    <h2>AI Flight Chatbot</h2>
+    <!-- Hero Section -->
+    <div class="hero">
+      <video autoplay muted loop>
+        <source
+          src="{{ url_for('static', filename='images/plane.mp4') }}"
+          type="video/mp4"
+        />
+        Your browser does not support the video tag.
+      </video>
 
-    <!-- Chatbox Container -->
-    <div class="container">
-      <div id="chatbox"></div>
-
-      <div id="input-container">
-        <input type="text" id="userInput" placeholder="Type your message..." />
-        <button onclick="sendMessage()">Send</button>
-      </div>
+      <h1>Welcome to AI Flight Chatbot</h1>
+      <p>Plan your next trip with ease</p>
+      <button id="scheduleTripBtn" class="schedule-trip">
+        FLIGHT WITH AI →
+      </button>
     </div>
 
-    <!-- Admin Payment Section (Now Same Width as Chatbox)
+    <!-- Modal Popup for Chatbot & Payment -->
+    <div id="chatModal" class="modal">
+      <div class="modal-content">
+        <span class="close-btn" onclick="closeModal()">×</span>
+
+        <!-- Chatbox Container -->
+        <div class="container">
+          <div id="chatbox"></div>
+
+          <div id="input-container">
+            <input
+              type="text"
+              id="userInput"
+              placeholder="Type your message..."
+            />
+            <button onclick="sendMessage()">Send</button>
+          </div>
+        </div>
+
+        <!-- Admin Payment Section (Now Same Width as Chatbox)
     <div class="container">
       <h3>Admin Payment</h3>
       <div class="payment-group">
@@ -201,88 +333,104 @@
     </div>
     -->
 
-    <!-- User Payment Section (Now Same Width as Chatbox) -->
-    <div class="container">
-      <h3>User Payment</h3>
-      <div class="payment-group">
-        <input
-          type="number"
-          id="userAmount"
-          min="1"
-          step="0.01"
-          placeholder="Enter amount ($)"
-        />
-        <button onclick="processUserPayment()">Pay Now</button>
+        <!-- User Payment Section (Now Same Width as Chatbox) -->
+        <div class="container">
+          <h3>User Payment</h3>
+          <div class="payment-group">
+            <input
+              type="number"
+              id="userAmount"
+              min="1"
+              step="0.01"
+              placeholder="Enter amount ($)"
+            />
+            <button onclick="processUserPayment()">Pay Now</button>
+          </div>
+          <a href="{{ url_for('reframer_payment') }}"
+            ><button>Go to Payment Page</button></a
+          >
+        </div>
+
+        <script>
+          let flightDetails = {};
+          function openModal() {
+            document.getElementById("chatModal").style.display = "flex";
+          }
+
+          function closeModal() {
+            document.getElementById("chatModal").style.display = "none";
+          }
+
+          document
+            .getElementById("scheduleTripBtn")
+            .addEventListener("click", openModal);
+
+          async function sendMessage() {
+            let userMessage = document.getElementById("userInput").value.trim();
+            if (!userMessage) return;
+
+            appendMessage("user", `You: ${userMessage}`);
+            let typingMessage = appendMessage(
+              "ai",
+              "<strong>AI:</strong> Typing...",
+              true
+            );
+
+            let response = await fetch("/chatbot", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ message: userMessage }),
+            });
+
+            let data = await response.json();
+            removeMessage(typingMessage);
+
+            if (data.redirect_payment) {
+              flightDetails =
+                JSON.parse(sessionStorage.getItem("flightDetails")) || {};
+              flightDetails.price = data.price || flightDetails.price || 250;
+              document.getElementById("userAmount").value = flightDetails.price;
+              sessionStorage.setItem(
+                "flightDetails",
+                JSON.stringify(flightDetails)
+              );
+            }
+
+            appendMessage("ai", `<strong>AI:</strong> ${data.response}`);
+            document.getElementById("userInput").value = "";
+          }
+
+          function appendMessage(sender, message, isTemporary = false) {
+            let chatbox = document.getElementById("chatbox");
+            let messageElement = document.createElement("p");
+            messageElement.classList.add("message", sender);
+            messageElement.innerHTML = message;
+            chatbox.appendChild(messageElement);
+            chatbox.scrollTop = chatbox.scrollHeight;
+            return isTemporary ? messageElement : null;
+          }
+
+          function removeMessage(element) {
+            if (element) element.remove();
+          }
+
+          // Define processUserPayment function at the global scope
+          function processUserPayment() {
+            sessionStorage.setItem(
+              "flightDetails",
+              JSON.stringify(flightDetails)
+            );
+            window.location.href = "/confirmation";
+          }
+
+          document.addEventListener("DOMContentLoaded", function () {
+            let payNowBtn = document.getElementById("payNowBtn");
+            if (payNowBtn) {
+              payNowBtn.addEventListener("click", processUserPayment);
+            }
+          });
+        </script>
       </div>
-      <a href="{{ url_for('reframer_payment') }}"
-        ><button>Go to Payment Page</button></a
-      >
     </div>
-
-    <script>
-      let flightDetails = {};
-
-      async function sendMessage() {
-        let userMessage = document.getElementById("userInput").value.trim();
-        if (!userMessage) return;
-
-        appendMessage("user", `You: ${userMessage}`);
-        let typingMessage = appendMessage(
-          "ai",
-          "<strong>AI:</strong> Typing...",
-          true
-        );
-
-        let response = await fetch("/chatbot", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: userMessage }),
-        });
-
-        let data = await response.json();
-        removeMessage(typingMessage);
-
-        if (data.redirect_payment) {
-          flightDetails =
-            JSON.parse(sessionStorage.getItem("flightDetails")) || {};
-          flightDetails.price = data.price || flightDetails.price || 250;
-          document.getElementById("userAmount").value = flightDetails.price;
-          sessionStorage.setItem(
-            "flightDetails",
-            JSON.stringify(flightDetails)
-          );
-        }
-
-        appendMessage("ai", `<strong>AI:</strong> ${data.response}`);
-        document.getElementById("userInput").value = "";
-      }
-
-      function appendMessage(sender, message, isTemporary = false) {
-        let chatbox = document.getElementById("chatbox");
-        let messageElement = document.createElement("p");
-        messageElement.classList.add("message", sender);
-        messageElement.innerHTML = message;
-        chatbox.appendChild(messageElement);
-        chatbox.scrollTop = chatbox.scrollHeight;
-        return isTemporary ? messageElement : null;
-      }
-
-      function removeMessage(element) {
-        if (element) element.remove();
-      }
-
-      // Define processUserPayment function at the global scope
-      function processUserPayment() {
-        sessionStorage.setItem("flightDetails", JSON.stringify(flightDetails));
-        window.location.href = "/confirmation";
-      }
-
-      document.addEventListener("DOMContentLoaded", function () {
-        let payNowBtn = document.getElementById("payNowBtn");
-        if (payNowBtn) {
-          payNowBtn.addEventListener("click", processUserPayment);
-        }
-      });
-    </script>
   </body>
 </html>
