@@ -1,17 +1,15 @@
 from flask import Flask, request, jsonify, render_template, send_from_directory, url_for, session
 import stripe
-import openai  # OpenAI API for AI responses
+import openai
 import os
-import re  # Import regex for flexible input matching
+import re
 
 app = Flask(__name__, static_folder="static")
-app.secret_key = "your_secret_key"  # Required for session storage
+app.secret_key = "your_secret_key"
 
-# OpenAI API Key
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
 
-# Stripe API Key
 STRIPE_API_KEY = os.getenv("STRIPE_API_KEY")
 stripe.api_key = STRIPE_API_KEY
 
@@ -65,34 +63,34 @@ def chatbot():
 
     # AI Assistant Response
     try:
+        messages = session.get("conversation_history", [])
+        messages.append({"role": "user", "content": user_input})
+
         response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a flight booking assistant."},
-                {"role": "user", "content": user_input}
-            ]
+            messages=messages
         )
-        return jsonify({"response": response.choices[0].message.content})
+
+        ai_response = response.choices[0].message.content
+        messages.append({"role": "assistant", "content": ai_response})
+        session["conversation_history"] = messages
+
+        return jsonify({"response": ai_response})
     except Exception as e:
         return jsonify({"response": f"Error: {str(e)}"}), 500
 
 @app.route("/create-checkout-session", methods=["POST"])
 def create_checkout_session():
     try:
-        # Retrieve flight details from session
         flight_details = session.get("flight_details")
 
         if not flight_details:
             return jsonify({"error": "Flight details missing. Please try booking again."}), 400
 
-        print("Flight details:", flight_details)  # Debugging print
-
-        # Ensure price is valid
-        amount = flight_details.get("price", 250) * 100  # Convert to cents
-        if amount < 100:  # Minimum $1.00
+        amount = flight_details.get("price", 250) * 100
+        if amount < 100:
             return jsonify({"error": "Invalid amount. Minimum amount is $1.00"}), 400
 
-        # Create Stripe session
         stripe_session = stripe.checkout.Session.create(
             payment_method_types=['card'],
             line_items=[{
@@ -114,12 +112,9 @@ def create_checkout_session():
         return jsonify({"checkout_url": stripe_session.url})
 
     except stripe.error.StripeError as e:
-        print("Stripe API Error:", e)  # Debugging print
         return jsonify({"error": "Stripe payment processing failed."}), 500
     except Exception as e:
-        print("General Error:", e)  # Debugging print
         return jsonify({"error": str(e)}), 500
-
 
 @app.route("/success")
 def success():
@@ -135,9 +130,7 @@ def confirmation():
 
 @app.route("/pay-now")
 def pay_now():
-    return render_template("reframer_payment.html")  # Redirects to payment page
-
-
+    return render_template("reframer_payment.html")
 
 if __name__ == "__main__":
     app.run(debug=True)
